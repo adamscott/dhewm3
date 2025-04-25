@@ -42,6 +42,9 @@ If you have questions concerning this license or the applicable additional terms
 
 #include <locale.h>
 
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+#endif
 
 
 #undef snprintf // no, I don't want to use idStr::snPrintf() here.
@@ -408,6 +411,18 @@ void idSysLocal::OpenURL( const char *url, bool quit ) {
 
 /*
 ===============
+emscripten_main_loop
+===============
+*/
+#ifdef __EMSCRIPTEN__
+void emscripten_main_loop() {
+	return common->Frame();
+}
+#endif
+
+
+/*
+===============
 main
 ===============
 */
@@ -423,6 +438,7 @@ int main(int argc, char **argv) {
 		return 1;
 	}
 #endif
+
 	// fallback path to the binary for systems without /proc
 	// while not 100% reliable, its good enough
 	if (argc > 0) {
@@ -454,8 +470,13 @@ int main(int argc, char **argv) {
 		common->Init( 0, NULL );
 	}
 
+#ifndef __EMSCRIPTEN__
 	while (1) {
 		common->Frame();
 	}
+#else // __EMSCRIPTEN__
+	emscripten_set_main_loop(emscripten_main_loop, -1, false);
+	emscripten_main_loop();
+#endif // __EMSCRIPTEN__
 	return 0;
 }

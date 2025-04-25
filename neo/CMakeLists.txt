@@ -226,7 +226,7 @@ if(EMSCRIPTEN)
 			set(pk4_file_js ${CMAKE_BINARY_DIR}/bin/base/${pk4_file}.js)
 			add_custom_command(
 				OUTPUT ${pk4_file_data} ${pk4_file_js}
-				COMMAND ${EMSCRIPTEN_FILE_PACKAGER} ${pk4_file_data} --preload ${DOOM_BASE_DIR}/${pk4_file}@base/${pk4_file} --js-output=${pk4_file_js} --use-preload-cache --lz4 --no-node --quiet
+				COMMAND ${EMSCRIPTEN_FILE_PACKAGER} ${pk4_file_data} --preload ${DOOM_BASE_DIR}/${pk4_file}@/home/web_user/.config/dhewm3/base/${pk4_file} --js-output=${pk4_file_js} --use-preload-cache --lz4 --no-node --separate-metadata --quiet
 			)
 			set(pk4_file_target "package_pk4_file_${pk4_file}")
 			add_custom_target(${pk4_file_target} DEPENDS ${pk4_file_data} ${pk4_file_js})

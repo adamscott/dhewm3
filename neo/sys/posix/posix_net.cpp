@@ -272,6 +272,10 @@ NET_InitNetworking
 */
 void Sys_InitNetworking(void)
 {
+#ifdef __EMSCRIPTEN__
+	return;
+#endif
+
 	unsigned int ip, mask;
 	struct ifaddrs *ifap, *ifp;
 
