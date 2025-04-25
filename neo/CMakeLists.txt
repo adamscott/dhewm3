@@ -173,6 +173,8 @@ endif()
 
 if(EMSCRIPTEN)
 	add_link_options(-sASSERTIONS)
+	add_link_options(-sALLOW_MEMORY_GROWTH)
+	add_link_options(-sSTACK_SIZE=16mb)
 	add_link_options(-sFORCE_FILESYSTEM)
 	add_link_options(-sEXPORT_ES6)
 	add_link_options(-sMODULARIZE)

@@ -2693,8 +2693,10 @@ void idFileSystemLocal::Init( void ) {
 	// try to start up normally
 	Startup( );
 
+#ifndef __EMSCRIPTEN__
 	// spawn a thread to handle background file reads
 	StartBackgroundDownloadThread();
+#endif
 
 	if ( ReadFile( "default.cfg", NULL, NULL ) <= 0 ) {
 		// DG: the demo gamedata is in demo/ instead of base/. to make it "just work", add a fallback for that
@@ -2711,6 +2713,10 @@ void idFileSystemLocal::Init( void ) {
 			common->FatalError( "Couldn't load default.cfg" );
 		}
 	}
+
+#ifndef __EMSCRIPTEN__
+    StartBackgroundDownloadThread();
+#endif
 }
 
 /*
