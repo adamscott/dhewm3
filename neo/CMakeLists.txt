@@ -63,6 +63,10 @@ option(REPRODUCIBLE_BUILD "Replace __DATE__ and __TIME__ by hardcoded values for
 
 option(HARDLINK_GAME "Compile gamecode into executable (no game DLLs)" OFF)
 
+if(EMSCRIPTEN)
+	option(FULL_GAME "Package full game files in the build" ON)
+endif()
+
 if(NOT MSVC) # GCC/clang or compatible, hopefully
 	option(FORCE_COLORED_OUTPUT "Always produce ANSI-colored compiler warnings/errors (GCC/Clang only; esp. useful with ninja)." OFF)
 	option(ASAN		"Enable GCC/Clang Adress Sanitizer (ASan)" OFF) # TODO: MSVC might also support this, somehow?
@@ -134,6 +138,12 @@ elseif(cpu MATCHES "[aA][rR][mM].*") # some kind of arm..
 	else() # should be 32bit arm then (probably "armv7l" "armv6k" or sth like that)
 		set(cpu "arm")
 	endif()
+elseif(cpu MATCHES "wasm.*")
+	if (CMAKE_SIZEOF_VOID_P EQUAL 8)
+		set(cpu "wasm64")
+	else()
+		set(cpu "wasm32")
+	endif()
 endif()
 
 # target os
@@ -159,6 +169,81 @@ else()
 		message(SEND_ERROR "CMake thinks sizeof(void*) == 4, but the target CPU ${cpu} looks like a 64bit CPU!")
 		message(FATAL_ERROR "If you're building in a 32bit chroot on a 64bit host, switch to it with 'linux32 chroot' or at least call cmake with linux32 (or your OSs equivalent)!")
 	endif()
+endif()
+
+if(EMSCRIPTEN)
+	add_link_options(-sASSERTIONS)
+	add_link_options(-sFORCE_FILESYSTEM)
+	add_link_options(-sEXPORT_ES6)
+	add_link_options(-sMODULARIZE)
+	add_link_options(-sEXPORT_NAME=dhewm3)
+	add_link_options(-sENVIRONMENT=web)
+	add_link_options(-sEXIT_RUNTIME=0)
+	add_link_options(-sLZ4)
+	add_link_options(-lidbfs.js)
+	add_link_options(-lsockfs.js)
+	add_link_options(-lfs.js)
+
+	set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+	set(CMAKE_EXECUTABLE_SUFFIX ".mjs")
+
+	set(DOOM_BASE_DIR CACHE FILEPATH "")
+	if (DOOM_BASE_DIR STREQUAL "")
+		message(FATAL_ERROR "DOOM_BASE_DIR not set.")
+	endif()
+
+	set(EMSCRIPTEN_FILE_PACKAGER CACHE FILEPATH "")
+	if (EMSCRIPTEN_FILE_PACKAGER STREQUAL "")
+		message(FATAL_ERROR "EMSCRIPTEN_FILE_PACKAGER not set.")
+	endif()
+
+	if(FULL_GAME)
+		set(pk4_files
+			game00.pk4
+			game01.pk4
+			game02.pk4
+			game03.pk4
+			pak000.pk4
+			pak001.pk4
+			pak002.pk4
+			pak003.pk4
+			pak004.pk4
+			pak005.pk4
+			pak006.pk4
+			pak007.pk4
+			pak008.pk4
+		)
+	else()
+		set(pk4_files
+			demo00.pk4
+		)
+	endif()
+
+	if (pk4_files)
+		set(pk4_file_targets)
+		foreach(pk4_file IN LISTS pk4_files)
+			set(pk4_file_data ${CMAKE_BINARY_DIR}/bin/base/${pk4_file}.data)
+			set(pk4_file_js ${CMAKE_BINARY_DIR}/bin/base/${pk4_file}.js)
+			add_custom_command(
+				OUTPUT ${pk4_file_data} ${pk4_file_js}
+				COMMAND ${EMSCRIPTEN_FILE_PACKAGER} ${pk4_file_data} --preload ${DOOM_BASE_DIR}/${pk4_file}@base/${pk4_file} --js-output=${pk4_file_js} --use-preload-cache --lz4 --no-node --quiet
+			)
+			set(pk4_file_target "package_pk4_file_${pk4_file}")
+			add_custom_target(${pk4_file_target} DEPENDS ${pk4_file_data} ${pk4_file_js})
+			list(APPEND pk4_file_targets ${pk4_file_target})
+		endforeach()
+	endif()
+
+	file(
+		COPY ${CMAKE_SOURCE_DIR}/sys/emscripten/index.html
+		DESTINATION bin
+	)
+	file(
+		COPY ${CMAKE_SOURCE_DIR}/sys/emscripten/index.mjs
+		DESTINATION bin
+	)
+	add_custom_target(emscripten_files DEPENDS bin/index.html bin/index.mjs)
+
 endif()
 
 # build type
@@ -192,8 +277,21 @@ if(CMAKE_MAJOR_VERSION LESS 3 OR ( CMAKE_MAJOR_VERSION EQUAL 3 AND CMAKE_MINOR_V
 endif()
 
 # libs
-find_package(OpenAL REQUIRED)
-include_directories(${OPENAL_INCLUDE_DIR})
+if (NOT EMSCRIPTEN)
+	find_package(OpenAL REQUIRED)
+	include_directories(${OPENAL_INCLUDE_DIR})
+else()
+	add_compile_options(--use-port=ogg)
+	add_link_options(-logg)
+	add_compile_options(--use-port=vorbis)
+	add_link_options(-lvorbis)
+	add_compile_options(--use-port=libjpeg)
+	add_link_options(-ljpeg)
+	add_compile_options(--use-port=zlib)
+	add_link_options(-lz)
+	add_link_options(-lopenal)
+	include_directories("${OPENAL_INCLUDE_DIR}")
+endif()
 
 if (SDL3)
 	if(SDL2)
@@ -208,13 +306,18 @@ if (SDL3)
 	set(SDLx_LIBRARY SDL3::SDL3)
 	add_definitions(-DD3_SDL3=1)
 elseif (SDL2)
-	# skip SDL2main
-	if(APPLE OR WIN32)
-		set(SDL2_BUILDING_LIBRARY TRUE)
+	if (EMSCRIPTEN)
+		add_compile_options(--use-port=sdl2)
+		add_link_options(-lsdl2)
+	else()
+		# skip SDL2main
+		if(APPLE OR WIN32)
+			set(SDL2_BUILDING_LIBRARY TRUE)
+		endif()
+		find_package(SDL2 REQUIRED)
+		include_directories(${SDL2_INCLUDE_DIR})
+		set(SDLx_LIBRARY ${SDL2_LIBRARY})
 	endif()
-	find_package(SDL2 REQUIRED)
-	include_directories(${SDL2_INCLUDE_DIR})
-	set(SDLx_LIBRARY ${SDL2_LIBRARY})
 else()
 	# skip SDLmain
 	if(APPLE OR WIN32)
@@ -317,7 +420,7 @@ if(D3_COMPILER_IS_GCC_OR_CLANG)
 
 	if(NOT CMAKE_CROSSCOMPILING AND ONATIVE)
 		add_compile_options(-march=native)
-	elseif(NOT APPLE AND cpu STREQUAL "x86")
+	elseif(NOT APPLE AND NOT EMSCRIPTEN AND cpu STREQUAL "x86")
 		add_compile_options(-march=pentium3)
 	endif()
 
@@ -1262,7 +1365,10 @@ if(CORE)
 		${src_imgui}
 		${src_editor_tools}
 	)
-	
+	if(EMSCRIPTEN)
+		add_dependencies(${DHEWM3BINARY} ${pk4_file_targets} emscripten_files)
+	endif()
+
 	if(MSVC AND CMAKE_MAJOR_VERSION GREATER 3 OR ( CMAKE_MAJOR_VERSION EQUAL 3 AND CMAKE_MINOR_VERSION GREATER_EQUAL 6 ))
 		# CMake >= 3.6 supports setting the default project started for debugging (instead of trying to launch ALL_BUILD ...)
 		set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT ${DHEWM3BINARY})
@@ -1289,7 +1395,13 @@ endif()
 		${sys_libs}
 	)
 
-	if(NOT APPLE AND NOT WIN32)
+	if(NOT APPLE AND NOT WIN32 AND NOT EMSCRIPTEN)
+		install(TARGETS ${DHEWM3BINARY}
+				RUNTIME DESTINATION "${bindir}"
+				LIBRARY DESTINATION "${libdir}"
+				ARCHIVE DESTINATION "${libdir}"
+		)
+	elseif(EMSCRIPTEN)
 		install(TARGETS ${DHEWM3BINARY}
 				RUNTIME DESTINATION "${bindir}"
 				LIBRARY DESTINATION "${libdir}"
