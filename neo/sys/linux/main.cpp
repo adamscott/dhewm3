@@ -69,6 +69,10 @@ If you have questions concerning this license or the applicable additional terms
 #include <FindDirectory.h>
 #endif
 
+#ifdef __EMSCRIPTEN__
+#include <emscripten/emscripten.h>
+#endif
+
 #ifndef PATH_MAX
 // this is mostly for windows. windows has a MAX_PATH = 260 #define, but allows
 // longer paths anyway.. this might not be the maximum allowed length, but is
@@ -408,6 +412,7 @@ main
 ===============
 */
 int main(int argc, char **argv) {
+#ifndef __EMSCRIPTEN__
 	// Prevent running Doom 3 as root
 	// Borrowed from Yamagi Quake II
 	if (getuid() == 0) {
@@ -417,6 +422,7 @@ int main(int argc, char **argv) {
 
 		return 1;
 	}
+#endif
 	// fallback path to the binary for systems without /proc
 	// while not 100% reliable, its good enough
 	if (argc > 0) {
