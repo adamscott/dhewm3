@@ -235,11 +235,11 @@ if(EMSCRIPTEN)
 	endif()
 
 	file(
-		COPY ${CMAKE_SOURCE_DIR}/sys/emscripten/index.html
+		COPY ${CMAKE_SOURCE_DIR}/sys/emscripten/static/index.html
 		DESTINATION bin
 	)
 	file(
-		COPY ${CMAKE_SOURCE_DIR}/sys/emscripten/index.mjs
+		COPY ${CMAKE_SOURCE_DIR}/sys/emscripten/static/index.mjs
 		DESTINATION bin
 	)
 	add_custom_target(emscripten_files DEPENDS bin/index.html bin/index.mjs)
